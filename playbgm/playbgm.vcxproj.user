@@ -5,7 +5,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>"E:\thbgm\thbgm11.dat" "E:\thbgm\thbgm11.fmt" 0</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>"E:\thbgm\thbgm11.dat" "E:\thbgm\thbgm11.fmt" *</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

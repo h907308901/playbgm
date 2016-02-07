@@ -7,83 +7,25 @@ BOOL WINAPI HandlerRoutine(
 HANDLE hEvent;
 BOOL bBreak;
 
-int _tmain(int argc, _TCHAR* argv[])
+void PlayerFunc(HANDLE hFileMapping, int filesize, HANDLE hEvent, THBGM_FMT bgmfmt, int loopcount)
 {
-	HANDLE hFile, hFileMapping;
+	int offst, offed, offlp; // Offset to start, end, loop start
+	int size, off; // Size of the part of thbgm.dat to be mapped
+	int addrfirst, sizefirst, addrloop, sizeloop; // Calculated address and size of first part and loop part in the mapped memory
+	int i, count, ret;
+	void* addr; // Base address of the view
 	HWAVEOUT hwo;
 	WAVEHDR wh;
-	//WAVEFORMATEX wfx;
-	int filesize; // Size of the thbgm.dat file, and we assume it is not larger then 4GB
-	int offst, offed, offlp; // Offset to start, end, loop start
-	int size, off, ret; // Size of the part of thbgm.dat to be mapped
-	int addrfirst, sizefirst, addrloop, sizeloop; // Calculated address and size of first part and loop part in the mapped memory
-	int i;
-	void* addr; // Base address of the view
-	FILE* fmtfile; // thbgm.fmt file
-	THBGM_FMT bgmfmt[64];
 
-	// Initislize variables
-	// Otherwise there will be errors in _onexit
-	hFile = INVALID_HANDLE_VALUE;
-	hFileMapping = NULL;
 	hwo = NULL;
-	hEvent = NULL;
-	fmtfile = NULL;
 	addr = NULL;
+	printf("%s ", bgmfmt.filename);
+	//printf("startaddr: 0x%08X size1: 0x%08X size2: 0x%08X unk: 0x%08X\n", bgmfmt.startaddr, bgmfmt.size1, bgmfmt.size2, bgmfmt.unk);
+	printf("%d channel(s) %dHz %dbit ", bgmfmt.wfx.nChannels, bgmfmt.wfx.nSamplesPerSec, bgmfmt.wfx.wBitsPerSample);
 
-	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <internal no>\n\n");
-
-	if (argc != 4) goto _onexit;
-
-	fmtfile = _wfopen(argv[2], L"rb");
-	
-	if (!fmtfile)
-	{
-		printf("open fmt file failed");
-		goto _onexit;
-	}
-
-	ZeroMemory(&bgmfmt[0], sizeof(bgmfmt));
-
-	for (i = 0; i < 64; i++)
-	{
-		// Note: the last item only contains a 16-byte string and a 1-byte terminator, instead of a complete THBGM_FMT
-		fread(&bgmfmt[i], sizeof(THBGM_FMT), 1, fmtfile);
-		if (!strcmp(bgmfmt[i].filename, ""))
-			break;
-		//printf("%s\n", bgmfmt[i].filename);
-	}
-
-	swscanf(argv[3], L"%d", &i);
-	if (i < 0 || i >=64 || !strcmp(bgmfmt[i].filename, "")) {
-		printf("number is out of range");
-		goto _onexit;
-	}
-
-	printf("%s\n", bgmfmt[i].filename);
-	//printf("startaddr: 0x%08X size1: 0x%08X size2: 0x%08X unk: 0x%08X\n", bgmfmt[i].startaddr, bgmfmt[i].size1, bgmfmt[i].size2, bgmfmt[i].unk);
-	printf("%d channel(s) %dHz %dbit\n", bgmfmt[i].wfx.nChannels, bgmfmt[i].wfx.nSamplesPerSec, bgmfmt[i].wfx.wBitsPerSample);
-	printf("\n");
-
-	offst = bgmfmt[i].startaddr;
-	offed = bgmfmt[i].startaddr + bgmfmt[i].size1;
-	offlp = bgmfmt[i].startaddr + bgmfmt[i].size2;
-
-	hFile = CreateFile(argv[1], FILE_ALL_ACCESS, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		printf("CreateFile failed, last error %x\n", GetLastError());
-		goto _onexit;
-	}
-
-	hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-
-	if (!hFileMapping)
-	{
-		printf("CreateFileMapping failed, last error %x\n", GetLastError());
-		goto _onexit;
-	}
+	offst = bgmfmt.startaddr;
+	offed = bgmfmt.startaddr + bgmfmt.size1;
+	offlp = bgmfmt.startaddr + bgmfmt.size2;
 
 	// 0x10000 align
 	// MapViewOfFile only accepts aligned addresses
@@ -95,7 +37,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	// So we set size to 0
 	// MSDN: If this parameter is 0 (zero), the mapping extends from the specified offset to the end of the file mapping
 
-	filesize = GetFileSize(hFile, NULL);
 	if (off + size > filesize)
 		size = 0;
 
@@ -125,22 +66,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	wfx.wBitsPerSample = 16;
 	wfx.cbSize = 0;*/
 
-	hEvent = CreateEvent(NULL, 0, 0, NULL);
-	bBreak = FALSE;
-
-	SetConsoleCtrlHandler(HandlerRoutine, TRUE);
-
-	ret = waveOutOpen(&hwo, WAVE_MAPPER, &bgmfmt[i].wfx, (DWORD_PTR)hEvent, 0, CALLBACK_EVENT);
-
-	// Note: waveOutOpen will set event to signaled
-	//ResetEvent(hEvent);
-
-	if (ret)
-	{
-		printf("waveOutOpen failed with error %d\n", ret);
-		goto _onexit;
-	}
-
 	addrfirst = (DWORD)addr + offst - off;
 	sizefirst = offed - offst;;
 	addrloop = (DWORD)addr + offlp - off;
@@ -153,7 +78,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	//printf("sizeloop: 0x%08X\n",sizeloop);
 	//printf("\n");
 
-	printf("Use CTRL+C to stop\n");
+	ret = waveOutOpen(&hwo, WAVE_MAPPER, &bgmfmt.wfx, (DWORD_PTR)hEvent, 0, CALLBACK_EVENT);
+
+	// Note: waveOutOpen will set event to signaled
+	//ResetEvent(hEvent);
+
+	if (ret)
+	{
+		printf("waveOutOpen failed with error %d\n", ret);
+		goto _onexit;
+	}
 
 	memset(&wh, 0, sizeof(wh));
 	wh.lpData = (LPSTR)addrfirst;
@@ -163,10 +97,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	waveOutPrepareHeader(hwo, &wh, sizeof(wh));
 	waveOutWrite(hwo, &wh, sizeof(wh));
+	waveOutSetVolume(hwo, 0xffffffff);
 
 	ResetEvent(hEvent);
 
-	// We need to pause for a while so that the wavOut function can work normally
+	// We need to pause for a while so that the waveOut function can work normally
 	// And we wait for the event in case the user uses CTRL+C during the time
 	WaitForSingleObject(hEvent, 1000);
 
@@ -178,21 +113,132 @@ int _tmain(int argc, _TCHAR* argv[])
 	wh.dwFlags = 0;
 	wh.dwLoops = 1;
 
-	while (!bBreak)
+	count = loopcount;
+
+	while (!bBreak && count != 0)
 	{
-		printf(".");
+		printf("=");
 		waveOutPrepareHeader(hwo, &wh, sizeof(wh));
 		waveOutWrite(hwo, &wh, sizeof(wh));
 
 		WaitForSingleObject(hEvent, INFINITE);
+		count -= 1;
 	}
 
-	printf("\n");
+	if (!bBreak) {
+		printf(">");
+		waveOutPrepareHeader(hwo, &wh, sizeof(wh));
+		waveOutWrite(hwo, &wh, sizeof(wh));
+		for (i = 0xffff; i >= 0x5000; i-=50) {
+			waveOutSetVolume(hwo, i << 16 | i);
+			if (bBreak) break;
+			Sleep(10);
+		}
+	}
+
+	printf("\n\n");
 
 _onexit:
-	if (hwo) waveOutClose(hwo);
-	if (hEvent) CloseHandle(hEvent);
+	if (hwo) {
+		waveOutReset(hwo);
+		waveOutClose(hwo);
+	}
 	if (addr) UnmapViewOfFile(addr);
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+	HANDLE hFile, hFileMapping;
+	
+	//WAVEFORMATEX wfx;
+	int filesize; // Size of the thbgm.dat file, and we assume it is not larger then 4GB
+	int i;
+	FILE* fmtfile; // thbgm.fmt file
+	THBGM_FMT bgmfmt[64];
+	bool playall;
+
+	// Initialize variables
+	// Otherwise there will be errors in _onexit
+	hFile = INVALID_HANDLE_VALUE;
+	hFileMapping = NULL;
+	hEvent = NULL;
+	fmtfile = NULL;
+
+	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <index>\n");
+	printf("       Specify * as index to play all tracks\n");
+	printf("\n");
+
+	if (argc != 4) goto _onexit;
+
+	fmtfile = _wfopen(argv[2], L"rb");
+
+	if (!fmtfile)
+	{
+		printf("open fmt file failed");
+		goto _onexit;
+	}
+
+	ZeroMemory(&bgmfmt[0], sizeof(bgmfmt));
+
+	for (i = 0; i < 64; i++)
+	{
+		// Note: the last item only contains a 16-byte string and a 1-byte terminator, instead of a complete THBGM_FMT
+		fread(&bgmfmt[i], sizeof(THBGM_FMT), 1, fmtfile);
+		if (!strcmp(bgmfmt[i].filename, ""))
+			break;
+		//printf("%s\n", bgmfmt[i].filename);
+	}
+
+	if (!lstrcmp(argv[3], L"*")) {
+		playall = true;
+	}
+	else {
+		playall = false;
+		swscanf(argv[3], L"%d", &i);
+		if (i < 0 || i >= 64 || !strcmp(bgmfmt[i].filename, "")) {
+			printf("number is out of range");
+			goto _onexit;
+		}
+	}
+
+	hFile = CreateFile(argv[1], FILE_ALL_ACCESS, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateFile failed, last error %x\n", GetLastError());
+		goto _onexit;
+	}
+
+	hEvent = CreateEvent(NULL, 0, 0, NULL);
+	bBreak = FALSE;
+
+	hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+
+	if (!hFileMapping)
+	{
+		printf("CreateFileMapping failed, last error %x\n", GetLastError());
+		goto _onexit;
+	}
+
+	filesize = GetFileSize(hFile, NULL);
+
+	SetConsoleCtrlHandler(HandlerRoutine, TRUE);
+
+	printf("Use CTRL+C to stop\n");
+	if (playall){
+		i = 0;
+		while (!bBreak) {
+			if (!strcmp(bgmfmt[i].filename, "")) i = 0;
+			PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], 1);
+			i++;
+		}
+	}
+	else {
+		PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], -1);
+	}
+
+_onexit:
+	if (hEvent) CloseHandle(hEvent);
 	if (hFileMapping) CloseHandle(hFileMapping);
 	if (hFile != INVALID_HANDLE_VALUE) CloseHandle(hFile);
 	if (fmtfile) fclose(fmtfile);
