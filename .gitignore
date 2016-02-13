@@ -1,4 +1,3 @@
 *.ncb
 *.sdf
-*.user
-.vs
+playbgm/*.user

@@ -129,14 +129,14 @@ void PlayerFunc(HANDLE hFileMapping, int filesize, HANDLE hEvent, THBGM_FMT bgmf
 		printf(">");
 		waveOutPrepareHeader(hwo, &wh, sizeof(wh));
 		waveOutWrite(hwo, &wh, sizeof(wh));
-		for (i = 0xffff; i >= 0x5000; i-=50) {
+		for (i = 0xffff; i >= 0x2000; i-=80) {
 			waveOutSetVolume(hwo, i << 16 | i);
 			if (bBreak) break;
 			Sleep(10);
 		}
 	}
 
-	printf("\n\n");
+	printf("\n");
 
 _onexit:
 	if (hwo) {
@@ -152,7 +152,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	
 	//WAVEFORMATEX wfx;
 	int filesize; // Size of the thbgm.dat file, and we assume it is not larger then 4GB
-	int i;
+	int i, ret, loopcount;
 	FILE* fmtfile; // thbgm.fmt file
 	THBGM_FMT bgmfmt[64];
 	bool playall;
@@ -164,15 +164,34 @@ int _tmain(int argc, _TCHAR* argv[])
 	hEvent = NULL;
 	fmtfile = NULL;
 
-	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <index>\n");
-	printf("       Specify * as index to play all tracks\n");
+	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <index> [<loop count>]\n");
+	printf("\n");
+	printf("<thbgm.dat>	Specify thbgm.dat file.\n");
+	printf("<thbgm.fmt>	Specify thbgm.fmt file.\n");
+	printf("<index>		Specify which track to play. * means playing all tracks.\n");
+	printf("<loop count>	Optional. Specify loop times for each track. For playing\n");
+	printf("		single track, the default value is infinite; for playing\n");
+	printf("		all tracks, the default value is 1. Must be greater than\n");
+	printf("		zero.\n");
 	printf("\n");
 
-	if (argc != 4) goto _onexit;
+	switch (argc) {
+	case 4:
+		loopcount = 0;
+		break;
+	case 5:
+		swscanf_s(argv[4], L"%d", &loopcount);
+		if (loopcount <= 0) {
+			printf("Loop count must be greater than zero");
+			goto _onexit;
+		}
+		break;
+	default:
+		goto _onexit;
+	}
 
-	fmtfile = _wfopen(argv[2], L"rb");
-
-	if (!fmtfile)
+	ret = _wfopen_s(&fmtfile, argv[2], L"rb");
+	if (ret)
 	{
 		printf("open fmt file failed");
 		goto _onexit;
@@ -191,10 +210,12 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	if (!lstrcmp(argv[3], L"*")) {
 		playall = true;
+		if (loopcount == 0) loopcount = 1;
 	}
 	else {
 		playall = false;
-		swscanf(argv[3], L"%d", &i);
+		if (loopcount == 0) loopcount = -1;
+		swscanf_s(argv[3], L"%d", &i);
 		if (i < 0 || i >= 64 || !strcmp(bgmfmt[i].filename, "")) {
 			printf("number is out of range");
 			goto _onexit;
@@ -229,15 +250,16 @@ int _tmain(int argc, _TCHAR* argv[])
 		i = 0;
 		while (!bBreak) {
 			if (!strcmp(bgmfmt[i].filename, "")) i = 0;
-			PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], 1);
+			PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], loopcount);
 			i++;
 		}
 	}
 	else {
-		PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], -1);
+		PlayerFunc(hFileMapping, filesize, hEvent, bgmfmt[i], loopcount);
 	}
 
 _onexit:
+	printf("\n");
 	if (hEvent) CloseHandle(hEvent);
 	if (hFileMapping) CloseHandle(hFileMapping);
 	if (hFile != INVALID_HANDLE_VALUE) CloseHandle(hFile);
