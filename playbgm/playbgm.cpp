@@ -164,8 +164,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	hEvent = NULL;
 	fmtfile = NULL;
 
-	printf("Touhou THBGM.DAT Player");
-	printf("http://github.com/h907308901/playbgm");
+	printf("Touhou THBGM.DAT Player\n");
+	printf("http://github.com/h907308901/playbgm\n");
 	printf("\n");
 	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <index> [<loop count>]\n");
 	printf("\n");
