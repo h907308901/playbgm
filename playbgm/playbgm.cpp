@@ -164,6 +164,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	hEvent = NULL;
 	fmtfile = NULL;
 
+	printf("Touhou THBGM.DAT Player");
+	printf("http://github.com/h907308901/playbgm");
+	printf("\n");
 	printf("Usage: playbgm <thbgm.dat> <thbgm.fmt> <index> [<loop count>]\n");
 	printf("\n");
 	printf("<thbgm.dat>	Specify thbgm.dat file.\n");
@@ -222,7 +225,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
-	hFile = CreateFile(argv[1], FILE_ALL_ACCESS, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	hFile = CreateFile(argv[1], GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
